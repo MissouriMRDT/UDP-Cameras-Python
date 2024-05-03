@@ -4,6 +4,7 @@ import cv2
 import logging
 import sys as sus
 import datetime
+import traceback
 
 logging.basicConfig(
     filename=f"./tmp/{datetime.datetime.now()}-receiver.log",
@@ -12,22 +13,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-SENDER_IP = "127.0.0.1"
+SENDER_IP = "192.168.4.101"
 SENDER_PORT = 12000
 
 
 def parse_args():
-    if len(sus.argv) != 5:
-        RECEIVER_IP = "127.0.0.1"
-        RECEIVER_PORT = 9999
-        CHUNK_SIZE = 46080  # 576  # size of each chunk
-        NUM_CHUNKS = 20  # 1600
-    else:
-        RECEIVER_IP = sus.argv[1]
-        RECEIVER_PORT = int(sus.argv[2])
-        CHUNK_SIZE = int(sus.argv[3])  # 576  # size of each chunk
-        NUM_CHUNKS = int(sus.argv[4])  # 1600
-        assert CHUNK_SIZE * NUM_CHUNKS == 921600
+    RECEIVER_IP = sus.argv[1] if len(sus.argv) >= 2 else "127.0.0.1"
+    RECEIVER_PORT = int(sus.argv[2]) if len(sus.argv) >= 3 else 9999
+    CHUNK_SIZE = 46080  # 576  # size of each chunk
+    NUM_CHUNKS = 20  # 1600
+    assert CHUNK_SIZE * NUM_CHUNKS == 921600
     return RECEIVER_IP, RECEIVER_PORT, CHUNK_SIZE, NUM_CHUNKS
 
 
@@ -70,10 +65,20 @@ def initiate_connection(RECEIVER_IP, RECEIVER_PORT, CHUNK_SIZE, NUM_CHUNKS):
         request = f"{RECEIVER_IP},{RECEIVER_PORT}"
         client_socket.send(request.encode())
 
-        data = client_socket.recv(1024)
+        data = client_socket.recv(2048)
 
         assert data.decode() == "OK"
         receive(RECEIVER_IP, RECEIVER_PORT, CHUNK_SIZE, NUM_CHUNKS)
+    except AssertionError:
+        _, _, tb = sus.exc_info()
+        traceback.print_tb(tb)
+        tb_info = traceback.extract_tb(tb)
+        _, line, func, text = tb_info[-1]
+        logger.error(
+            f"Assertion Error:\n  Line: {line}\n  Function: {func}\n  Text: {text}"
+        )
+    except Exception as e:
+        logger.error(e)
     finally:
         client_socket.close()
 
